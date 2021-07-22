@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"log"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/pion/interceptor"
@@ -173,6 +175,7 @@ func (element *Muxer) WriteHeader(streams []av.CodecData, sdp64 string) (string,
 	if err != nil {
 		return "", err
 	}
+	answer.SDP = UpdateBandwidthRestriction(answer.SDP, "125")
 	if err = peerConnection.SetLocalDescription(answer); err != nil {
 		return "", err
 	}
@@ -189,6 +192,19 @@ func (element *Muxer) WriteHeader(streams []av.CodecData, sdp64 string) (string,
 	return base64.StdEncoding.EncodeToString([]byte(resp.SDP)), nil
 
 }
+
+func UpdateBandwidthRestriction(sdp string, bandwidth string) string {
+	modifier := "AS"
+	if !strings.Contains(sdp, "b=" + modifier + ":") {
+		// insert b= after c= line.
+		re := regexp.MustCompile("/c=IN (.*)\r\n/")
+		sdp = re.ReplaceAllString(sdp, "c=IN $1\r\nb=" + modifier + ":" + bandwidth + "\r\n")
+	} else {
+		re := regexp.MustCompile("b=" + modifier + ":.*\r\n")
+		sdp = re.ReplaceAllString(sdp, "b=" + modifier + ":" + bandwidth + "\r\n")
+	}
+	return sdp
+  }
 
 func (element *Muxer) WritePacket(pkt av.Packet) (err error) {
 	//log.Println("WritePacket", pkt.Time, element.stop, webrtc.ICEConnectionStateConnected, pkt.Idx, element.streams[pkt.Idx])
